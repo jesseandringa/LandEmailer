@@ -70,12 +70,12 @@ class EmailService:
         # print('beforeeeeee')
         messageHTMLBody,messageBodyPlain = self.makeMessage(name, parcels, self.counties)
         # attachments = ["Commercially_Creative_Product_Deck.pdf"]
-        subject = 'Inquiring about a land parcel'
-        if self.counties[0] != 'xx' and self.counties[0] != ' ':
-            subject += ' in '+ str(self.counties[0]) +' county'
-        else:
-            subject += ' in ' +str(self.state)
-        
+        # subject = 'Inquiring about a land parcel'
+        # if self.counties[0] != 'xx' and self.counties[0] != ' ':
+        #     subject += ' in '+ str(self.counties[0]) +' county'
+        # else:
+        #     subject += ' in ' +str(self.state)
+        subject ='SLC-based couple hoping to make an offer on vacant land'
         # print('message: ::::::::::::::::::::::::::::::::::::')
         # print(f'subject: {subject}')
         # print(f'messageHTMLBody {messageBodyPlain}')
@@ -85,11 +85,12 @@ class EmailService:
             "subject": subject,
             "msg_html": messageHTMLBody,
             "msg_plain": messageBodyPlain,
-            "signature": False, # use my account signature
+            "signature": True, # use my account signature
             "attachments": attachments
         }
         try:
             message = self.gmail.send_message(**params) 
+            print(f'http error:::: {message}')
             return (True,message)
         except HttpError as e:
             print('HTTP ERRORRRRR')
@@ -109,43 +110,61 @@ class EmailService:
         
         
     def makeMessage(self, owner_name, parcels, counties):
-        HTMLBody = '<p>Hi! My name\'s Casey, I was hoping to reach ' + owner_name + ' about'
-        if len(parcels) > 1: 
-            HTMLBody += ' a couple pieces of vacant land in '
-        else: 
-            HTMLBody +=' a piece of vacant land in '
-        print(f'county {counties[0]}')
-        for index , county in enumerate(counties): 
-            if len(counties) == 1: 
-                if county != 'xx' and county != None and county !=  ' ':
-                    HTMLBody+= str(county)+ ' County, '
-            else: 
-                if index == len(counties) -1:
-                    HTMLBody+= str(county) 
-                elif index == len(counties) -2: 
-                    HTMLBody += str(county) + ' and '
-                else:
-                    HTMLBody+= str(county) + ", "
+        HTMLBody = '<p>Hi! My name’s Casey, I’m hoping to reach '
+        HTMLBody += owner_name
+        HTMLBody+= ' regarding a parcel of vacant land in the greater Salt Lake/Park City area that I am hoping to make an offer on. My significant other and I are currently looking for our first home down in the Sugarhouse area and have came up empty handed after months of searching. I was starting to get a little sick and tired of playing the exact same house-search game as everyone else, so figured I would reach out to owners of potential parcels we like and see if you would be interested in selling to two folk looking to build a small home to live in while we build our lives in Utah. <p>'
+
+        HTMLBody +='<p>I have no idea if you’d consider selling, but please email me back here or give me a call/text at my cell below anytime if you are (or even know somebody that might).<p>' 
+
+        HTMLBody +='<p>Also, sorry if this is the wrong email, or if you are not interested in selling, please let me know and I’ll remove you from my list that I made from the county map.<p>'
+
+        HTMLBody +='<p>Thanks!<p>'
+        # HTMLBody = '<p>Hi! My name\'s Casey, I was hoping to reach ' + owner_name + ' about'
+        # if len(parcels) > 1: 
+        #     HTMLBody += ' a couple pieces of vacant land in '
+        # else: 
+        #     HTMLBody +=' a piece of vacant land in '
+        # print(f'county {counties[0]}')
+        # for index , county in enumerate(counties): 
+        #     if len(counties) == 1: 
+        #         if county != 'xx' and county != None and county !=  ' ':
+        #             HTMLBody+= str(county)+ ' County, '
+        #     else: 
+        #         if index == len(counties) -1:
+        #             HTMLBody+= str(county) 
+        #         elif index == len(counties) -2: 
+        #             HTMLBody += str(county) + ' and '
+        #         else:
+        #             HTMLBody+= str(county) + ", "
                     
             
             
-        HTMLBody += self.state + ' that I would like to make an offer on'
-        if len(parcels) > 1: 
-            HTMLBody += '.<p>'
-        else:
-            HTMLBody += ' (the parcel number is '+ parcels[0] + ').<p>'
+        # HTMLBody += self.state + ' that I would like to make an offer on'
+        # if len(parcels) > 1: 
+        #     HTMLBody += '.<p>'
+        # else:
+        #     HTMLBody += ' (the parcel number is '+ parcels[0] + ').<p>'
         
         
-        HTMLBody += '<p>Also, I know theres a ton of email scams out there, so if you feel better calling or texting me here\'s my cell (303)-618-6175.<p>'
+        # HTMLBody += '<p>Also, I know theres a ton of email scams out there, so if you feel better calling or texting me here\'s my cell (303)-618-6175.<p>'
             
-        HTMLBody += '<p>My younger brother and I have been actively searching for a piece of land in ' + self.state + ' and I think yours could be just what we\'re looking for! I have no idea if you would be at all interested in selling, but if you are, I\'d love to chat further and see if we can find a price that works for both of us. We\'d be looking to purchase with cash so any proceedings should be pretty quick and painless.<p>'
+        # HTMLBody += '<p>My younger brother and I have been actively searching for a piece of land in ' + self.state + ' and I think yours could be just what we\'re looking for! I have no idea if you would be at all interested in selling, but if you are, I\'d love to chat further and see if we can find a price that works for both of us. We\'d be looking to purchase with cash so any proceedings should be pretty quick and painless.<p>'
 
-        HTMLBody += '<p>Thanks for your time, and if this is the wrong email address, my apologies for wasting your time! We look forward to hearing from you!<p>'
-        
+        # HTMLBody += '<p>Thanks for your time, and if this is the wrong email address, my apologies for wasting your time! We look forward to hearing from you!<p>'
+        # HTMLBody +='<p><p>'
+        # HTMLBody += '<p>Also, If you don’t want me to contact you again, let me know.<p>'
         plainBody = str(HTMLBody)
         plainBody = re.sub(r'<p>|<\/p>', '', plainBody)
         
         return HTMLBody, plainBody
+    
+    def getEmailAddressFromMessage(self,message):
+        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+
+    # Use re.findall to find all email addresses in the message
+        emails = re.findall(email_pattern, message)
+
+        return emails
 
 ###########
 # Not part of the class
