@@ -8,97 +8,13 @@ import SpreadsheetService as SS
 import util.NewsScraper as NS
 
 
-def brewery_script():
-    print("brewery script ")
-    sheet, service = SS.getSpreadsheet()
-    values = SS.getSpreadsheetValues(sheet)
-    numOfRows = len(values)
-    print(len(values))
-    # numOfRows = 52
-
-    # keep track of emails so you don't email same one twice
-    Email_Set = set()
-
-    # print('number of rows: ' + str(len(values)))
-    for x in range(0, numOfRows):
-        row = values[x]
-
-        # if company has not been contacted yet or empty row
-        if len(row) > 2 or len(row) < 2:
-            continue
-            # if no email or not valid email in row, skip row
-        # if not NS.validateEmail(row[9]):
-        #     continue
-
-        try:
-            urlName = SS.getBrewingListUrlFromRow(row)
-            name, emailSet = NS.getCompanyNameAndEmail(urlName)
-
-            if name == "Home":
-                name = row[0]
-
-            # make sure there are no duplicates of emails being sent
-            if name is not None and emailSet is not None:
-                print("name: " + name)
-                # print(f'email ' + str(emailSet))
-                emails = set()
-                for email in emailSet:
-                    if email in Email_Set:
-                        continue
-                    emails.add(email)
-                    if len(emails) > 3:
-                        break
-
-            else:  # update sheet with error
-                print("no emaillll")
-                today = date.today()
-                updateVals = [
-                    [today, "Error", "No Email found", "", "", "Jesse Andringa"]
-                ]
-                SS.updateRow("C" + str(x + 1) + ":H" + str(x + 1), updateVals, sheet)
-                continue
-
-            # send email
-
-            workingEmails = GS.sendEmails(name, emails)
-
-            if len(workingEmails) > 0:
-                workingEmails = set(workingEmails)
-                Email_Set = Email_Set.union(workingEmails)
-            else:
-                workingEmails = None
-
-            # update sheet
-            if workingEmails is not None:
-                print(f"loop {x}")
-                today = date.today()
-                today = str(today)
-                updateVals = [
-                    [today, "No", str(workingEmails), "", "", "Jesse Andringa"]
-                ]
-                SS.updateRow("C" + str(x + 1) + ":H" + str(x + 1), updateVals, sheet)
-            else:
-                print(f"no email in loop {x}")
-                today = date.today()
-                today = str(today)
-                updateVals = [
-                    [today, "Error", "Email same as above", "", "", "Jesse Andringa"]
-                ]
-                SS.updateRow("C" + str(x + 1) + ":H" + str(x + 1), updateVals, sheet)
-        except Exception as e:
-            print(f"exception in loop {x}")
-            today = date.today()
-            today = str(today)
-            updateVals = [[today, "Error", str(e), "", "", "Jesse Andringa"]]
-            SS.updateRow("C" + str(x + 1) + ":H" + str(x + 1), updateVals, sheet)
-
 
 def land_script():
     print("land script")
     number_of_emails = input("How many emails do you want to send? ")
     number_of_emails = int(number_of_emails)
     MY_EMAIL = "casey.william1994@gmail.com"
-    data = pd.read_csv("Salt_lake_summit_county_land_final_v5_final_cleaned.csv")
+    data = pd.read_csv("contact_export-Sevier_county_out_of_state_individual_pre_2010.csv")
     dont_data = pd.read_csv("dontEmailList.csv")
     retry_data = pd.read_csv("retries.csv")
 
@@ -107,23 +23,23 @@ def land_script():
     # NAMES = data['FirstName'] +' ' +data['LastName']
     EMAILS = data["Email 1"]
     EMAILS_2 = data["Email 2"]
-    NAMES = data["Owner First name"] + " " + data["owner last name"]
+    NAMES = data["First Name"] + " " + data["Last Name"]
 
     # PARCEL_NUM = data['Parcel Id']
-    PARCEL_NUM = data["Parcel Address"]
+    ADDRESS = data["Street Address"] 
 
     # COUNTY = data['Property COUNTY']
     # STATE = data['Property State']
-    COUNTY = data["County"]
-    STATE = ["Utah"] * len(COUNTY)
+    CITY = data["City"]
+    STATE = data["State"]
 
     # get column if exists and create it if it doesn't
     try:
         TRIED_EMAILING = data["Tried Emailing"]
         EMAIL_SENT = data["Email Sent"]
     except:
-        data["Tried Emailing"] = [""] * len(COUNTY)
-        data["Email Sent"] = [""] * len(COUNTY)
+        data["Tried Emailing"] = [""] * len(CITY)
+        data["Email Sent"] = [""] * len(CITY)
         TRIED_EMAILING = data["Tried Emailing"]
         EMAIL_SENT = data["Email Sent"]
 
@@ -179,29 +95,34 @@ def land_script():
             if EMAILS[i] == email:
                 same_person_indices.append(index)
 
-        parcels = [PARCEL_NUM[index] for index in same_person_indices]
-        counties = [COUNTY[index] for index in same_person_indices]
-        counties = list(set(counties))
+        addresses = [ADDRESS[index] for index in same_person_indices]
+        cities = [CITY[index] for index in same_person_indices]
+        cities = list(set(cities))
 
-        if any(isinstance(county, float) for county in counties):
-            counties = ["xx"]
+        # if any(isinstance(county, float) for county in counties):
+        #     counties = ["xx"]
         # print(parcels)
         # counties = [county for j,email in enumerate(EMAILS) if email == EMAILS[i] for county in [COUNTY[j]]]
 
         # print(parcels)
-        print(counties)
+        print(cities)
 
         state = STATE[i]
-        # if counties[0] == 'Duschene':
-        #     state = 'Utah'
-        emailer = GS.EmailService(MY_EMAIL, parcels, EMAILS[i], counties, EMAILS, state)
+        
+        #######################
+        ### SEND EMAIL WITH INFORMATION HERE
+        ####################################
+        emailer = GS.EmailService(MY_EMAIL, addresses, EMAILS[i], cities, EMAILS, state)
+        print("emailer: ", emailer)
         for index in same_person_indices:
             TRIED_EMAILING[index] = "Yes"
-        # worked = True
+        worked = True
         try:
-            worked, error_message = emailer.sendEmail(NAMES[i], EMAILS[i], parcels)
+            print("trying to send email ",NAMES[i], EMAILS[i], addresses)
+            worked, error_message = emailer.sendEmail(NAMES[i], EMAILS[i], addresses)
             print(f"error_message {error_message}")
-        except:
+        except Exception as e:
+            print(f"error sending email {e}")
             errors_allowed -= 1
             worked = False
             error_message = "Error in HTTP call"
@@ -222,7 +143,7 @@ def land_script():
                     EMAILS[i],
                     "emailed before",
                     state,
-                    counties[0],
+                    cities[0],
                 ]
             except:
                 dont_data.loc[len(dont_data.index)] = [EMAILS[i], "emailed before"]
@@ -295,10 +216,8 @@ def makeSSChanges():
 if __name__ == "__main__":
     # print(sys.executable)
     script = input(
-        "What script are you running? Type one of these: \n brewery \n land\n spreadsheet\n"
+        "What script are you running? Type one of these: \n land\n spreadsheet\n"
     )
-    if script == "brewery":
-        brewery_script()
     if script == "land":
         land_script()
     if script == "spreadsheet":

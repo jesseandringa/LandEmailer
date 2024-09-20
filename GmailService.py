@@ -5,21 +5,20 @@ import re
 import numpy as np
 ####
 class EmailService:
-    def __init__(self, my_email_address, parcels, email, counties, email_list, state = 'Colorado'):
+    def __init__(self, my_email_address, addresses, email, cities, email_list, state = 'Colorado'):
         self.sender = my_email_address
         self.gmail = Gmail() # will open a browser window to ask you to log in and authenticate
-        self.parcels = parcels
+        self.addresses = addresses
         self.email = email
-        self.num_of_parcels = len(parcels)
-        for i in range(len(counties)):
-            counties[i] = counties[i].lower()
-            counties[i] = counties[i].title()
-        self.counties = [county.replace(' Nm', '') for county in counties]
+        self.num_of_addresses = len(addresses)
+        for i in range(len(cities)):
+            if cities[i] is None or not isinstance(cities[i], str) or len(cities[i]) < 2:
+                cities[i] = state.upper()
+            else:
+                cities[i] = cities[i].lower()
+                cities[i] = cities[i].title()
+        self.cities = [county for county in cities]
         self.all_emails = email_list 
-        if state == 'NM':
-            state = 'New Mexico'
-        elif state == 'CO':
-            state = 'Colorado'
         self.state = state
       
     def getEmailsWithQuery(self, query):
@@ -62,23 +61,14 @@ class EmailService:
             
             
     #send email to single email  
-    def sendEmail(self,name,emailAddress, parcels ,attachments = []):
+    def sendEmail(self,name,emailAddress, addresses ,attachments = []):
         ''' use simplegmail library to send email to email 
             given name of person and emailaddress
         '''
+        print("sendEmail", name, emailAddress, addresses)
         name = name.title()
-        # print('beforeeeeee')
-        messageHTMLBody,messageBodyPlain = self.makeMessage(name, parcels, self.counties)
-        # attachments = ["Commercially_Creative_Product_Deck.pdf"]
-        # subject = 'Inquiring about a land parcel'
-        # if self.counties[0] != 'xx' and self.counties[0] != ' ':
-        #     subject += ' in '+ str(self.counties[0]) +' county'
-        # else:
-        #     subject += ' in ' +str(self.state)
-        subject ='SLC-based couple hoping to make an offer on vacant land'
-        # print('message: ::::::::::::::::::::::::::::::::::::')
-        # print(f'subject: {subject}')
-        # print(f'messageHTMLBody {messageBodyPlain}')
+        messageHTMLBody,messageBodyPlain = self.makeMessage(name, addresses, self.cities)
+        subject ='New land investor looking to purchase your parcel of vacant land'
         params = {
             "to": emailAddress,
             "sender": self.sender,
@@ -88,6 +78,7 @@ class EmailService:
             "signature": True, # use my account signature
             "attachments": attachments
         }
+        print("params", params)
         try:
             message = self.gmail.send_message(**params) 
             print(f'http error:::: {message}')
@@ -109,50 +100,23 @@ class EmailService:
             return (False, error_mess)
         
         
-    def makeMessage(self, owner_name, parcels, counties):
-        HTMLBody = '<p>Hi! My name’s Casey, I’m hoping to reach '
-        HTMLBody += owner_name
-        HTMLBody+= ' regarding a parcel of vacant land in the greater Salt Lake/Park City area that I am hoping to make an offer on. My significant other and I are currently looking for our first home down in the Sugarhouse area and have came up empty handed after months of searching. I was starting to get a little sick and tired of playing the exact same house-search game as everyone else, so figured I would reach out to owners of potential parcels we like and see if you would be interested in selling to two folk looking to build a small home to live in while we build our lives in Utah. <p>'
+    def makeMessage(self, owner_name, addresses, cities):
+        pattern  = r'^\d'
+        if re.match(pattern, addresses[0]):
+            address_component = f'the address of the parcel is {addresses[0]}'
+        else:
+            address_component = f'the parcel is off of {addresses[0]}'
 
-        HTMLBody +='<p>I have no idea if you’d consider selling, but please email me back here or give me a call/text at my cell below anytime if you are (or even know somebody that might).<p>' 
 
-        HTMLBody +='<p>Also, sorry if this is the wrong email, or if you are not interested in selling, please let me know and I’ll remove you from my list that I made from the county map.<p>'
+        HTMLBody = f'<p>Hi! My name’s Casey, I’m hoping to reach {owner_name} regarding a parcel of vacant land in  {cities[0]} that I am hoping to make an offer on ({address_component}) <p>'
 
-        HTMLBody +='<p>Thanks!<p>'
-        # HTMLBody = '<p>Hi! My name\'s Casey, I was hoping to reach ' + owner_name + ' about'
-        # if len(parcels) > 1: 
-        #     HTMLBody += ' a couple pieces of vacant land in '
-        # else: 
-        #     HTMLBody +=' a piece of vacant land in '
-        # print(f'county {counties[0]}')
-        # for index , county in enumerate(counties): 
-        #     if len(counties) == 1: 
-        #         if county != 'xx' and county != None and county !=  ' ':
-        #             HTMLBody+= str(county)+ ' County, '
-        #     else: 
-        #         if index == len(counties) -1:
-        #             HTMLBody+= str(county) 
-        #         elif index == len(counties) -2: 
-        #             HTMLBody += str(county) + ' and '
-        #         else:
-        #             HTMLBody+= str(county) + ", "
-                    
-            
-            
-        # HTMLBody += self.state + ' that I would like to make an offer on'
-        # if len(parcels) > 1: 
-        #     HTMLBody += '.<p>'
-        # else:
-        #     HTMLBody += ' (the parcel number is '+ parcels[0] + ').<p>'
+        HTMLBody +=f'<p>Also, I know theres a ton of email scams out there, so if you feel better calling or texting me, here’s my cell (303)-618-6175.<p>'
+ 
+
+        HTMLBody +=f'<p>I’m new to land investing and have been looking in the greater {cities[0]} area, for a few weeks and think yours could be a good fit. I have no idea if you would be interested in selling, but if you are, I’d love to chat further and see if we can find a price that works for both of us. I (and the partners I’ve worked with in the past) typically just pay in cash so the transaction is faster and easier on all parties.<p>'
+
+        HTMLBody +=f'<p>Thanks for your time, and if this is the wrong email address, or you simply don’t want to sell, my apologies for wasting your time! I look forward to hearing from you! Also, If you don’t want me to contact you again, please just let me know.<p>'
         
-        
-        # HTMLBody += '<p>Also, I know theres a ton of email scams out there, so if you feel better calling or texting me here\'s my cell (303)-618-6175.<p>'
-            
-        # HTMLBody += '<p>My younger brother and I have been actively searching for a piece of land in ' + self.state + ' and I think yours could be just what we\'re looking for! I have no idea if you would be at all interested in selling, but if you are, I\'d love to chat further and see if we can find a price that works for both of us. We\'d be looking to purchase with cash so any proceedings should be pretty quick and painless.<p>'
-
-        # HTMLBody += '<p>Thanks for your time, and if this is the wrong email address, my apologies for wasting your time! We look forward to hearing from you!<p>'
-        # HTMLBody +='<p><p>'
-        # HTMLBody += '<p>Also, If you don’t want me to contact you again, let me know.<p>'
         plainBody = str(HTMLBody)
         plainBody = re.sub(r'<p>|<\/p>', '', plainBody)
         
@@ -180,35 +144,35 @@ def sendEmails(companyName, emailList):
     return workedEmails
       
 #send email to single email  
-def sendEmail(companyName,emailAddress):
-    gmail = Gmail() # will open a browser window to ask you to log in and authenticate
+# def sendEmail(companyName,emailAddress):
+#     gmail = Gmail() # will open a browser window to ask you to log in and authenticate
     
-    messageHTMLBody,messageBodyPlain = makeMessage(companyName)
+#     messageHTMLBody,messageBodyPlain = makeMessage(companyName)
     
-    params = {
-        "to": emailAddress,
-        "sender": "c0mmerciallycreativ3@gmail.com",
-        "subject": "Product Photo Opportunity",
-        "msg_html": messageHTMLBody,
-        "msg_plain": messageBodyPlain,
-        "signature": True, # use my account signature
-        "attachments":["Commercially_Creative_Product_Deck.pdf"]
-    }
-    try:
-        message = gmail.send_message(**params) 
-        # print(message)
-        return (True, 'None')
-    except HttpError as e:
-        if e.resp.content:
-            error_details = e.resp.json()["error"]["errors"][0]
-            error_message = error_details["message"]
-            error_reason = error_details["reason"]
+#     params = {
+#         "to": emailAddress,
+#         "sender": "c0mmerciallycreativ3@gmail.com",
+#         "subject": "Product Photo Opportunity",
+#         "msg_html": messageHTMLBody,
+#         "msg_plain": messageBodyPlain,
+#         "signature": True, # use my account signature
+#         "attachments":["Commercially_Creative_Product_Deck.pdf"]
+#     }
+#     try:
+#         message = gmail.send_message(**params) 
+#         # print(message)
+#         return (True, 'None')
+#     except HttpError as e:
+#         if e.resp.content:
+#             error_details = e.resp.json()["error"]["errors"][0]
+#             error_message = error_details["message"]
+#             error_reason = error_details["reason"]
             
-            print("An HttpError occurred:")
-            print(f"Error Message: {error_message}")
-            print(f"Error Reason: {error_reason}")
-            print(f"email: "+emailAddress)
-        else:
-            print('HTTP error with email: ' + emailAddress)
-        error_mess =  str(error_message) + str(error_reason) 
-        return (False, error_mess)
+#             print("An HttpError occurred:")
+#             print(f"Error Message: {error_message}")
+#             print(f"Error Reason: {error_reason}")
+#             print(f"email: "+emailAddress)
+#         else:
+#             print('HTTP error with email: ' + emailAddress)
+#         error_mess =  str(error_message) + str(error_reason) 
+#         return (False, error_mess)
