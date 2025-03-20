@@ -2,29 +2,40 @@ import base64
 import os
 from email.mime.text import MIMEText
 
-from google.auth.credentials import Credentials  # Import Credentials class
+from google.oauth2.credentials import Credentials  # Import Credentials class
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
 
-
+email_address_to_port ={
+    "swellagroupllc": 50633,
+    "theswellagroupllc": 8080
+}
 # Function to authenticate and return Gmail service
-def authenticate_user():
+def authenticate_user(email_address):
     creds = None
     # The file token.json stores the user's access and refresh tokens.
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    token_path = "token_"+email_address + ".json"
+    credentials_path = "credentials_" +email_address +".json"
+    
+    if os.path.exists(token_path):
+        print("token path exists")
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
     if not creds or not creds.valid:
+        print('no creds')
         if creds and creds.expired and creds.refresh_token:
+            print('old')
             creds.refresh(Request())
+
         else:
+            print('new')
             # The OAuth flow to get new credentials
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
+            flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
+            creds = flow.run_local_server(port=email_address_to_port[email_address])
         # Save the credentials for the next run
-        with open("token.json", "w") as token:
+        with open(token_path, "w") as token:
             token.write(creds.to_json())
     return creds
 
@@ -50,13 +61,14 @@ def create_message(sender, to, subject, body):
     raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
     return {"raw": raw_message}
 
-
+email_address = "swellagroupllc"
 # Authenticate the first test user
-creds_user_1 = authenticate_user()
+creds_user_1 = authenticate_user(email_address)
 service_user_1 = build("gmail", "v1", credentials=creds_user_1)
 
 # Authenticate the second test user (you'd go through the OAuth flow again)
-creds_user_2 = authenticate_user()
+email_address = "theswellagroupllc"
+creds_user_2 = authenticate_user(email_address)
 service_user_2 = build("gmail", "v1", credentials=creds_user_2)
 
 # Send email from the first test user
