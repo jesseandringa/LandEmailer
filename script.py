@@ -13,24 +13,21 @@ def land_script():
     print("land script")
     number_of_emails = input("How many emails do you want to send? ")
     number_of_emails = int(number_of_emails)
-    MY_EMAIL = "casey.william1994@gmail.com"
-    data = pd.read_csv("contact_export-Sevier_county_out_of_state_individual_pre_2010.csv")
+    MY_EMAIL = "swellagroupllc@gmail.com"
+    # MY_EMAIL = "casey.andringa@gmail.com"
+    data = pd.read_csv("Park and fremont county 2_19_2025 - Sheet1 (1).csv")
     dont_data = pd.read_csv("dontEmailList.csv")
     retry_data = pd.read_csv("retries.csv")
 
     RETRY_EMAILS = retry_data["emails"]
-    # EMAILS = data['Email']
-    # NAMES = data['FirstName'] +' ' +data['LastName']
     EMAILS = data["Email 1"]
-    EMAILS_2 = data["Email 2"]
-    NAMES = data["First Name"] + " " + data["Last Name"]
-
-    # PARCEL_NUM = data['Parcel Id']
-    ADDRESS = data["Street Address"] 
-
-    # COUNTY = data['Property COUNTY']
-    # STATE = data['Property State']
-    CITY = data["City"]
+    # EMAILS_2 = data["Email 2"]
+    FIRST_NAMES = data["First Name"]
+    LAST_NAMES = data["Last Name"]
+    NAMES = FIRST_NAMES + " " + LAST_NAMES
+    PARCEL_NUM = data['Parcel Number']
+    # ADDRESS = data["Street Address"] 
+    COUNTY = data['County']
     STATE = data["State"]
 
     # get column if exists and create it if it doesn't
@@ -38,8 +35,8 @@ def land_script():
         TRIED_EMAILING = data["Tried Emailing"]
         EMAIL_SENT = data["Email Sent"]
     except:
-        data["Tried Emailing"] = [""] * len(CITY)
-        data["Email Sent"] = [""] * len(CITY)
+        data["Tried Emailing"] = [""] * len(EMAILS)
+        data["Email Sent"] = [""] * len(EMAILS)
         TRIED_EMAILING = data["Tried Emailing"]
         EMAIL_SENT = data["Email Sent"]
 
@@ -95,9 +92,9 @@ def land_script():
             if EMAILS[i] == email:
                 same_person_indices.append(index)
 
-        addresses = [ADDRESS[index] for index in same_person_indices]
-        cities = [CITY[index] for index in same_person_indices]
-        cities = list(set(cities))
+        # addresses = [ADDRESS[index] for index in same_person_indices]
+        # cities = [CITY[index] for index in same_person_indices]
+        # cities = list(set(cities))
 
         # if any(isinstance(county, float) for county in counties):
         #     counties = ["xx"]
@@ -105,22 +102,21 @@ def land_script():
         # counties = [county for j,email in enumerate(EMAILS) if email == EMAILS[i] for county in [COUNTY[j]]]
 
         # print(parcels)
-        print(cities)
+        # print(cities)
 
         state = STATE[i]
         
         #######################
         ### SEND EMAIL WITH INFORMATION HERE
         ####################################
-        emailer = GS.EmailService(MY_EMAIL, addresses, EMAILS[i], cities, EMAILS, state)
+        emailer = GS.EmailService(MY_EMAIL)
         print("emailer: ", emailer)
         for index in same_person_indices:
             TRIED_EMAILING[index] = "Yes"
         worked = True
         try:
-            print("trying to send email ",NAMES[i], EMAILS[i], addresses)
-            worked, error_message = emailer.sendEmail(NAMES[i], EMAILS[i], addresses)
-            print(f"error_message {error_message}")
+            print("trying to send email ",NAMES[i], EMAILS[i])
+            worked, error_message = emailer.sendEmail(FIRST_NAMES[i], LAST_NAMES[i],COUNTY[i],STATE[i],PARCEL_NUM[i],  EMAILS[i])
         except Exception as e:
             print(f"error sending email {e}")
             errors_allowed -= 1
@@ -132,21 +128,23 @@ def land_script():
             for index in same_person_indices:
                 EMAIL_SENT[index] = "Yes"
             print("worked: " + str(EMAILS[i]))
+
+            time.sleep(30)
         else:
             for index in same_person_indices:
                 print("error:  " + str(EMAILS[i]))
                 EMAIL_SENT[index] = str(error_message)
 
-        if EMAILS[i] != "bumpdog@gmail.com":
+        if EMAILS[i] != "bumpdog@gmail.com" and EMAILS[i] !="casey.andringa@gmail.com":
             try:
                 dont_data.loc[len(dont_data.index)] = [
                     EMAILS[i],
                     "emailed before",
                     state,
-                    cities[0],
+                    "city",
                 ]
             except:
-                dont_data.loc[len(dont_data.index)] = [EMAILS[i], "emailed before"]
+                dont_data.loc[len(dont_data.index)] = [EMAILS[i], "emailed before","state", "city"]
 
         amount += 1
         print(f"amount = {amount}")
@@ -215,13 +213,13 @@ def makeSSChanges():
 
 if __name__ == "__main__":
     # print(sys.executable)
-    script = input(
-        "What script are you running? Type one of these: \n land\n spreadsheet\n"
-    )
-    if script == "land":
-        land_script()
-    if script == "spreadsheet":
-        makeSSChanges()
+    # script = input(
+        # "What script are you running? Type one of these: \n land\n spreadsheet\n"
+    # )
+    # if script == "land":
+    land_script()
+    # if script == "spreadsheet":
+    #     makeSSChanges()
 
 # data = {
 #     'DataZapp_Email': ['bumpdog@gmail.com','bumpdog@gmail.com','bumpdofsdfsdfsdfsdfsfg@gmail.com','jess.andringa@gmail.com','bumpdog@gmail.com'],

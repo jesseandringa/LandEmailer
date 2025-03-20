@@ -3,23 +3,23 @@ from simplegmail.query import construct_query
 from googleapiclient.errors import HttpError
 import re 
 import numpy as np
-####
+####AIzaSyBv3BGPsFEd5yIEO_NIB1MuMvMVLfe-SPc
 class EmailService:
-    def __init__(self, my_email_address, addresses, email, cities, email_list, state = 'Colorado'):
+    def __init__(self, my_email_address):
         self.sender = my_email_address
         self.gmail = Gmail() # will open a browser window to ask you to log in and authenticate
-        self.addresses = addresses
-        self.email = email
-        self.num_of_addresses = len(addresses)
-        for i in range(len(cities)):
-            if cities[i] is None or not isinstance(cities[i], str) or len(cities[i]) < 2:
-                cities[i] = state.upper()
-            else:
-                cities[i] = cities[i].lower()
-                cities[i] = cities[i].title()
-        self.cities = [county for county in cities]
-        self.all_emails = email_list 
-        self.state = state
+        # self.addresses = addresses
+        # self.email = email
+        # self.num_of_addresses = len(addresses)
+        # for i in range(len(cities)):
+            # if cities[i] is None or not isinstance(cities[i], str) or len(cities[i]) < 2:
+                # cities[i] = state.upper()
+            # else:
+                # cities[i] = cities[i].lower()
+                # cities[i] = cities[i].title()
+        # self.cities = [county for county in cities]
+        # self.all_emails = email_list 
+        # self.state = state
       
     def getEmailsWithQuery(self, query):
         messages = self.gmail.get_messages(query=construct_query(query))
@@ -61,16 +61,16 @@ class EmailService:
             
             
     #send email to single email  
-    def sendEmail(self,name,emailAddress, addresses ,attachments = []):
+    def sendEmail(self,first_name, last_name, county, state, parcel_number,email_address ,attachments = []):
         ''' use simplegmail library to send email to email 
-            given name of person and emailaddress
+            given name of person and email_address
         '''
-        print("sendEmail", name, emailAddress, addresses)
-        name = name.title()
-        messageHTMLBody,messageBodyPlain = self.makeMessage(name, addresses, self.cities)
-        subject ='New land investor looking to purchase your parcel of vacant land'
+        # print("sendEmail", name, email_address, addresses)
+        # name = name.title()
+        messageHTMLBody,messageBodyPlain = self.makeMessage( first_name, last_name, county, state, parcel_number)
+        subject =f'Interested in purchasing your parcel of land in {county} County, {state}'
         params = {
-            "to": emailAddress,
+            "to": email_address,
             "sender": self.sender,
             "subject": subject,
             "msg_html": messageHTMLBody,
@@ -81,42 +81,34 @@ class EmailService:
         print("params", params)
         try:
             message = self.gmail.send_message(**params) 
-            print(f'http error:::: {message}')
+            print('message from gmail', message)
             return (True,message)
-        except HttpError as e:
-            print('HTTP ERRORRRRR')
-            if e.resp.content:
-                error_details = e.resp.json()["error"]["errors"][0]
-                error_message = error_details["message"]
-                error_reason = error_details["reason"]
-                
-                print("An HttpError occurred:")
-                print(f"Error Message: {error_message}")
-                print(f"Error Reason: {error_reason}")
-                print(f"email: "+emailAddress)
-            else:
-                print('HTTP error with email: ' + emailAddress)
+        except Exception as e:
+            print('e:::::::::::::::::::\n',e)
             error_mess =  str(error_message) + str(error_reason) 
             return (False, error_mess)
         
         
-    def makeMessage(self, owner_name, addresses, cities):
+    def makeMessage(self, first_name, last_name, county, state, parcel_number):
         pattern  = r'^\d'
-        if re.match(pattern, addresses[0]):
-            address_component = f'the address of the parcel is {addresses[0]}'
-        else:
-            address_component = f'the parcel is off of {addresses[0]}'
+        # if re.match(pattern, addresses[0]):
+        #     address_component = f'the address of the parcel is {addresses[0]}'
+        # else:
+        #     address_component = f'the parcel is off of {addresses[0]}'
 
 
-        HTMLBody = f'<p>Hi! My name’s Casey, I’m hoping to reach {owner_name} regarding a parcel of vacant land in  {cities[0]} that I am hoping to make an offer on ({address_component}) <p>'
+        HTMLBody = f"""<p>Hi {first_name}, I hope you’re doing well. My name is Casey, and I’m reaching out because I’m interested in purchasing land in {county} County, {state}. I came across your property (Parcel number {parcel_number}) and wanted to see if you might be open to selling. If I have the wrong email, or you simply don't want me to contact you again, please let me know.<p>
 
-        HTMLBody +=f'<p>Also, I know theres a ton of email scams out there, so if you feel better calling or texting me, here’s my cell (303)-618-6175.<p>'
- 
+                    <p>I understand that selling land can be a big decision, and I want to make the process as easy as possible for you. If you’re interested, I’d be happy to discuss a potential cash offer with no commissions or closing costs on your end.<p>
 
-        HTMLBody +=f'<p>I’m new to land investing and have been looking in the greater {cities[0]} area, for a few weeks and think yours could be a good fit. I have no idea if you would be interested in selling, but if you are, I’d love to chat further and see if we can find a price that works for both of us. I (and the partners I’ve worked with in the past) typically just pay in cash so the transaction is faster and easier on all parties.<p>'
+                    <p>Let me know if you’d like to chat or have any questions—I’d love to hear from you. If you’re not interested, just reply and let me know, and I won’t contact you again.<p>
 
-        HTMLBody +=f'<p>Thanks for your time, and if this is the wrong email address, or you simply don’t want to sell, my apologies for wasting your time! I look forward to hearing from you! Also, If you don’t want me to contact you again, please just let me know.<p>'
-        
+                    <p>Thank you for your time, and I look forward to hearing from you!<p>
+                    <p>Casey<p>
+                    <p>Swella Group LLC<p>
+                    <p>P.O. Box 16602 Salt Lake City ut 84116<p>
+                    <p>(801)-923-4989<br>
+                    """
         plainBody = str(HTMLBody)
         plainBody = re.sub(r'<p>|<\/p>', '', plainBody)
         
