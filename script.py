@@ -6,176 +6,135 @@ import pandas as pd
 import GmailService as GS
 import SpreadsheetService as SS
 import util.NewsScraper as NS
+from GmailService import GmailService
 
 
 
-def land_script():
-    print("land script")
-    number_of_emails = input("How many emails do you want to send? ")
-    number_of_emails = int(number_of_emails)
-    MY_EMAIL = "swellagroupllc@gmail.com"
-    # MY_EMAIL = "casey.andringa@gmail.com"
-    data = pd.read_csv("Park and fremont county 2_19_2025 - Sheet1 (1).csv")
+def load_data(csv_file):
+    """Load and prepare CSV data for email processing."""
+    data = pd.read_csv(csv_file)
     dont_data = pd.read_csv("dontEmailList.csv")
     retry_data = pd.read_csv("retries.csv")
-
-    RETRY_EMAILS = retry_data["emails"]
-    EMAILS = data["Email 1"]
-    # EMAILS_2 = data["Email 2"]
-    FIRST_NAMES = data["First Name"]
-    LAST_NAMES = data["Last Name"]
-    NAMES = FIRST_NAMES + " " + LAST_NAMES
-    PARCEL_NUM = data['Parcel Number']
-    # ADDRESS = data["Street Address"] 
-    COUNTY = data['County']
-    STATE = data["State"]
-
-    # get column if exists and create it if it doesn't
-    try:
-        TRIED_EMAILING = data["Tried Emailing"]
-        EMAIL_SENT = data["Email Sent"]
-    except:
-        data["Tried Emailing"] = [""] * len(EMAILS)
-        data["Email Sent"] = [""] * len(EMAILS)
-        TRIED_EMAILING = data["Tried Emailing"]
-        EMAIL_SENT = data["Email Sent"]
-
-    dont_emails = list(dont_data["Emails"])
-    emails_used = []
-    try:
-        DONT_STATE = dont_data["State"]
-        DONT_COUNTY = dont_data["County"]
-    except:
-        dont_data["State"] = [""] * len(dont_emails)
-        dont_data["County"] = [""] * len(dont_emails)
-        DONT_STATE = dont_data["State"]
-        DONT_COUNTY = dont_data["County"]
-
-    amount = 0
-
-    # *errors allowed in a row
-    errors_allowed = 3
-    for i in range(0, len(EMAILS)):
-        print(f"i = {i}")
-        if EMAILS[i] not in RETRY_EMAILS:
-            # continue
-            if EMAILS[i] in dont_emails:
-                continue
-            if pd.isna(EMAILS[i]):
-                continue
-            if EMAIL_SENT[i] == "Yes":
-                continue
-            if TRIED_EMAILING[i] == "Yes":
-                continue
-            if errors_allowed <= 0:
-                errors_allowed_input = input(
-                    "There has been 3 errors. Do you want to continue? Y/N "
-                )
-                if errors_allowed_input != "Y":
-                    break
-                else:
-                    errors_allowed = 3
-        elif len(emails_used) > 0:
-            print("elselslselsellse")
-            if EMAILS[i] in emails_used:
-                continue
-        else:
-            print("11elselsleellelsleleslleslsleleslselselselsellse")
-            EMAILS[i] = EMAILS_2[i]
-
-        # get all of the parcels that the owner has
-
-        # same_person_indices = EMAILS == EMAILS[i]
-        # parcels = [parcel for j, email in enumerate(EMAILS) if email == EMAILS[i] for parcel in [PARCEL_NUM[j]]]
-        same_person_indices = []
-        for index, email in enumerate(EMAILS):
-            if EMAILS[i] == email:
-                same_person_indices.append(index)
-
-        # addresses = [ADDRESS[index] for index in same_person_indices]
-        # cities = [CITY[index] for index in same_person_indices]
-        # cities = list(set(cities))
-
-        # if any(isinstance(county, float) for county in counties):
-        #     counties = ["xx"]
-        # print(parcels)
-        # counties = [county for j,email in enumerate(EMAILS) if email == EMAILS[i] for county in [COUNTY[j]]]
-
-        # print(parcels)
-        # print(cities)
-
-        state = STATE[i]
+    
+    # Add needed columns if they don't exist
+    if "Tried Emailing" not in data.columns:
+        data["Tried Emailing"] = [""] * len(data)
+    if "Email Sent" not in data.columns:
+        data["Email Sent"] = [""] * len(data)
         
-        #######################
-        ### SEND EMAIL WITH INFORMATION HERE
-        ####################################
-        emailer = GS.EmailService(MY_EMAIL)
-        print("emailer: ", emailer)
-        for index in same_person_indices:
-            TRIED_EMAILING[index] = "Yes"
-        worked = True
+    # Set up don't email list columns if needed
+    if "State" not in dont_data.columns:
+        dont_data["State"] = [""] * len(dont_data)
+    if "County" not in dont_data.columns:
+        dont_data["County"] = [""] * len(dont_data)
+        
+    return data, dont_data, retry_data
+
+def should_send_email(email, row_index, data, dont_emails, retry_emails, emails_used):
+    """Determine if an email should be sent based on various criteria."""
+    if email in dont_emails or pd.isna(email):
+        return False
+    if data["Email Sent"].iloc[row_index] == "Yes":
+        return False
+    if data["Tried Emailing"].iloc[row_index] == "Yes":
+        return False
+    if email in retry_emails and email in emails_used:
+        return False
+    return True
+
+def land_script():
+    """Main function to process and send land purchase emails."""
+    print("Starting land email campaign")
+    
+    # Get user inputs
+    sender_email = input("Enter the email address you want to send from: ")
+    csv_file = input("Enter the CSV file name containing the recipient data: ")
+    number_of_emails = int(input("How many emails do you want to send? "))
+    
+    # Initialize Gmail service
+    gmail_service = GmailService(sender_email)
+    
+    # Load data
+    data, dont_data, retry_data = load_data(csv_file)
+    retry_emails = list(retry_data["emails"])
+    dont_emails = list(dont_data["Emails"])
+    
+    # Track progress
+    emails_sent = 0
+    emails_used = []
+    consecutive_errors = 0
+    errors_allowed = 3
+    
+    # Process each email
+    for i in range(len(data)):
+        email = data["Email 1"].iloc[i]
+        
+        # Skip if we shouldn't send to this email
+        if not should_send_email(email, i, data, dont_emails, retry_emails, emails_used):
+            continue
+            
+        # Get recipient information
+        first_name = data["First Name"].iloc[i]
+        last_name = data["Last Name"].iloc[i]
+        county = data["County"].iloc[i]
+        state = data["State"].iloc[i]
+        parcel_number = data["Parcel Number"].iloc[i]
+        
+        # Mark as tried
+        data.loc[i, "Tried Emailing"] = "Yes"
+        
+        # Send the email
         try:
-            print("trying to send email ",NAMES[i], EMAILS[i])
-            worked, error_message = emailer.sendEmail(FIRST_NAMES[i], LAST_NAMES[i],COUNTY[i],STATE[i],PARCEL_NUM[i],  EMAILS[i])
+            success, message = gmail_service.send_email(
+                first_name, last_name, county, state, parcel_number, email
+            )
+            
+            if success:
+                emails_used.append(email)
+                data.loc[i, "Email Sent"] = "Yes"
+                consecutive_errors = 0
+                print(f"Successfully sent email to {email}")
+            else:
+                data.loc[i, "Email Sent"] = str(message)
+                consecutive_errors += 1
+                print(f"Failed to send email to {email}: {message}")
+                
         except Exception as e:
-            print(f"error sending email {e}")
-            errors_allowed -= 1
-            worked = False
-            error_message = "Error in HTTP call"
-        print(f"result: {worked} {error_message}")
-        if worked:
-            emails_used.append(EMAILS[i])
-            for index in same_person_indices:
-                EMAIL_SENT[index] = "Yes"
-            print("worked: " + str(EMAILS[i]))
-
-            time.sleep(30)
-        else:
-            for index in same_person_indices:
-                print("error:  " + str(EMAILS[i]))
-                EMAIL_SENT[index] = str(error_message)
-
-        if EMAILS[i] != "bumpdog@gmail.com" and EMAILS[i] !="casey.andringa@gmail.com":
-            try:
-                dont_data.loc[len(dont_data.index)] = [
-                    EMAILS[i],
-                    "emailed before",
-                    state,
-                    "city",
-                ]
-            except:
-                dont_data.loc[len(dont_data.index)] = [EMAILS[i], "emailed before","state", "city"]
-
-        amount += 1
-        print(f"amount = {amount}")
-        if amount >= number_of_emails:
+            print(f"Error sending email to {email}: {str(e)}")
+            data.loc[i, "Email Sent"] = f"Exception: {str(e)}"
+            consecutive_errors += 1
+        
+        # Add to don't email list
+        if email not in ["bumpdog@gmail.com", "casey.andringa@gmail.com"]:
+            dont_data.loc[len(dont_data.index)] = [email, "emailed before", state, county]
+        
+        # Check if we've hit error limit
+        if consecutive_errors >= errors_allowed:
+            response = input("There have been multiple consecutive errors. Continue? (Y/N) ")
+            if response.upper() != "Y":
+                break
+            consecutive_errors = 0
+        
+        # Add delay between emails
+        time.sleep(30)
+        
+        # Increment counter and check limit
+        emails_sent += 1
+        print(f"Emails sent: {emails_sent}/{number_of_emails}")
+        if emails_sent >= number_of_emails:
             break
-
-    #### check if we received any system failure emails :
-    ## wait a couple mins first for all of them to come in
-    print("sleeping")
-    time.sleep(20)
-    print("done sleeping")
-    try:
-        unread_emails = emailer.gmail.get_unread_inbox()
-        system_error, failed_emails = emailer.checkMailDeliveryError(unread_emails)
-    except:
-        unread_emails = []
-        system_error = False
-        failed_emails = []
-    print(f"unread emails: {unread_emails}")
-    print(f"failed emails: {failed_emails}")
-    if system_error:
-        #  '** Address doesn\'t exist **'
-        for index, item in enumerate(data["Email 1"]):
-            if item in failed_emails:
-                EMAIL_SENT[index] = "** Address Doesn't Exist **"
-
-    # set columns and update spreadsheet
-    # data = pd.DataFrame(data)
-
-    data.to_csv("Salt_lake_summit_county_land_final_v5_final_cleaned.csv", index=False)
+    
+    # Check for delivery failures
+    has_failures, failed_emails = gmail_service.check_mail_delivery_errors()
+    if has_failures:
+        print(f"Delivery failures detected for: {failed_emails}")
+        for email in failed_emails:
+            data.loc[data["Email 1"] == email, "Email Sent"] = "** Address Doesn't Exist **"
+    
+    # Save updated data
+    data.to_csv(csv_file, index=False)
     dont_data.to_csv("dontEmailList.csv", index=False)
+    print(f"Email campaign completed. Sent {emails_sent} emails.")
 
 
 def makeSSChanges():

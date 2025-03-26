@@ -1,170 +1,146 @@
-from simplegmail import Gmail
-from simplegmail.query import construct_query
-from googleapiclient.errors import HttpError
-import re 
-import numpy as np
-####AIzaSyBv3BGPsFEd5yIEO_NIB1MuMvMVLfe-SPc
-class EmailService:
-    def __init__(self, my_email_address):
-        self.sender = my_email_address
-        self.gmail = Gmail() # will open a browser window to ask you to log in and authenticate
-        # self.addresses = addresses
-        # self.email = email
-        # self.num_of_addresses = len(addresses)
-        # for i in range(len(cities)):
-            # if cities[i] is None or not isinstance(cities[i], str) or len(cities[i]) < 2:
-                # cities[i] = state.upper()
-            # else:
-                # cities[i] = cities[i].lower()
-                # cities[i] = cities[i].title()
-        # self.cities = [county for county in cities]
-        # self.all_emails = email_list 
-        # self.state = state
-      
-    def getEmailsWithQuery(self, query):
-        messages = self.gmail.get_messages(query=construct_query(query))
-        return messages
-        
-    # send email to list of emails
-    def sendEmails(self, companyName, emailList):
-        failedEmails = set()
-        for email in emailList:
-            worked = self.sendEmail(companyName, email)
-            if not worked: 
-                failedEmails.add(email)
-        workedEmails = list(filter(lambda email: email not in failedEmails, emailList))
-        return workedEmails
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+import base64
+from email.mime.text import MIMEText
+import os
+import re
+from datetime import datetime
+
+class GmailService:
+    """Service for sending and managing emails through Gmail API."""
     
-    #looks at unread emails to see if email was unable to be found
-    def checkMailDeliveryError(self, emails):
-        some_failed= False
-        failed_emails = []
-        for message in emails: 
-            message.mark_as_read()
-            # print("To: " + message.recipient)
-            # print("From: " + message.sender)
-            # print("Subject: " + message.subject)
-            # print("Date: " + message.date)
-            # print("Preview: " + message.snippet)
-            print("Message Body: " + message.plain)
+    # Map of email usernames to their authentication ports
+    EMAIL_PORTS = {
+        "swellagroupllc": 50633,
+        "theswellagroupllc": 8080
+    }
+    
+    SCOPES = ["https://www.googleapis.com/auth/gmail.send", 
+              "https://www.googleapis.com/auth/gmail.readonly"]
+    
+    def __init__(self, sender_email):
+        """
+        Initialize the Gmail service with sender's email.
+        
+        Args:
+            sender_email: Full email address of the sender (e.g., "example@gmail.com")
+        """
+        self.sender = sender_email
+        self.username = sender_email.split('@')[0]  # Extract username from email
+        self.service = self._authenticate_user()
+    
+    def _authenticate_user(self):
+        """Authenticate user and create Gmail service."""
+        creds = None
+        token_path = f"token_{self.username}.json"
+        credentials_path = f"credentials_{self.username}.json"
+        
+        # Load existing credentials if available
+        if os.path.exists(token_path):
+            creds = Credentials.from_authorized_user_file(token_path, self.SCOPES)
             
-            if '** Address not found **' in message.plain or "Message blocked" in message.plain or "Message not delivered" in message.plain:
-                failed_email = re.search(r'[\w.+-]+@[\w-]+\.[\w.-]+', message.plain)
-                if failed_email: 
-                    print('failed email ' +failed_email.group())
-                    failed_emails.append(failed_email.group())
-                    some_failed = True 
-                # print(f'address not found: {self.email}')
+        # Refresh or create new credentials if needed
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                port = self.EMAIL_PORTS.get(self.username, 8080)
+                flow = InstalledAppFlow.from_client_secrets_file(credentials_path, self.SCOPES)
+                creds = flow.run_local_server(port=port)
                 
-        return some_failed, failed_emails
-                
-            
-            
-    #send email to single email  
-    def sendEmail(self,first_name, last_name, county, state, parcel_number,email_address ,attachments = []):
-        ''' use simplegmail library to send email to email 
-            given name of person and email_address
-        '''
-        # print("sendEmail", name, email_address, addresses)
-        # name = name.title()
-        messageHTMLBody,messageBodyPlain = self.makeMessage( first_name, last_name, county, state, parcel_number)
-        subject =f'Interested in purchasing your parcel of land in {county} County, {state}'
-        params = {
-            "to": email_address,
-            "sender": self.sender,
-            "subject": subject,
-            "msg_html": messageHTMLBody,
-            "msg_plain": messageBodyPlain,
-            "signature": True, # use my account signature
-            "attachments": attachments
-        }
-        print("params", params)
+            # Save credentials for future use
+            with open(token_path, "w") as token:
+                token.write(creds.to_json())
+        
+        return build("gmail", "v1", credentials=creds)
+    
+    def _create_message(self, to, subject, html_body, plain_body):
+        """Create email message in proper format."""
+        message = MIMEText(html_body, 'html')
+        message['to'] = to
+        message['from'] = self.sender
+        message['subject'] = subject
+        
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
+        return {"raw": raw_message}
+    
+    def send_email(self, first_name, last_name, county, state, parcel_number, recipient_email):
+        """Send an email to a single recipient."""
+        html_body, plain_body = self.create_message(first_name, last_name, county, state, parcel_number)
+        subject = f'Interested in purchasing your parcel of land in {county} County, {state}'
+        
+        message = self._create_message(recipient_email, subject, html_body, plain_body)
+        
         try:
-            message = self.gmail.send_message(**params) 
-            print('message from gmail', message)
-            return (True,message)
+            result = self.service.users().messages().send(userId="me", body=message).execute()
+            print(f"Message sent successfully. Message ID: {result.get('id')}")
+            return True, result
         except Exception as e:
-            print('e:::::::::::::::::::\n',e)
-            error_mess =  str(error_message) + str(error_reason) 
-            return (False, error_mess)
-        
-        
-    def makeMessage(self, first_name, last_name, county, state, parcel_number):
-        pattern  = r'^\d'
-        # if re.match(pattern, addresses[0]):
-        #     address_component = f'the address of the parcel is {addresses[0]}'
-        # else:
-        #     address_component = f'the parcel is off of {addresses[0]}'
-
-
-        HTMLBody = f"""<p>Hi {first_name}, I hope you’re doing well. My name is Casey, and I’m reaching out because I’m interested in purchasing land in {county} County, {state}. I came across your property (Parcel number {parcel_number}) and wanted to see if you might be open to selling. If I have the wrong email, or you simply don't want me to contact you again, please let me know.<p>
-
-                    <p>I understand that selling land can be a big decision, and I want to make the process as easy as possible for you. If you’re interested, I’d be happy to discuss a potential cash offer with no commissions or closing costs on your end.<p>
-
-                    <p>Let me know if you’d like to chat or have any questions—I’d love to hear from you. If you’re not interested, just reply and let me know, and I won’t contact you again.<p>
-
-                    <p>Thank you for your time, and I look forward to hearing from you!<p>
-                    <p>Casey<p>
-                    <p>Swella Group LLC<p>
-                    <p>P.O. Box 16602 Salt Lake City ut 84116<p>
-                    <p>(801)-923-4989<br>
-                    """
-        plainBody = str(HTMLBody)
-        plainBody = re.sub(r'<p>|<\/p>', '', plainBody)
-        
-        return HTMLBody, plainBody
+            error_message = f"Failed to send email: {str(e)}"
+            print(error_message)
+            return False, error_message
     
-    def getEmailAddressFromMessage(self,message):
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    def create_message(self, first_name, last_name, county, state, parcel_number):
+        """Create email message body in HTML and plain text formats."""
+        html_body = f"""
+        <p>Hi {first_name}, I hope you're doing well. My name is Casey, and I'm reaching out because 
+        I'm interested in purchasing land in {county} County, {state}. I came across your property 
+        (Parcel number {parcel_number}) and wanted to see if you might be open to selling. If I have 
+        the wrong email, or you simply don't want me to contact you again, please let me know.</p>
 
-    # Use re.findall to find all email addresses in the message
-        emails = re.findall(email_pattern, message)
+        <p>I understand that selling land can be a big decision, and I want to make the process as 
+        easy as possible for you. If you're interested, I'd be happy to discuss a potential cash 
+        offer with no commissions or closing costs on your end.</p>
 
-        return emails
+        <p>Let me know if you'd like to chat or have any questions—I'd love to hear from you. 
+        If you're not interested, just reply and let me know, and I won't contact you again.</p>
 
-###########
-# Not part of the class
-#################
-# send email to list of emails
-def sendEmails(companyName, emailList):
-    failedEmails = set()
-    for email in emailList:
-        worked = sendEmail(companyName, email)
-        if not worked: 
-            failedEmails.add(email)
-    workedEmails = list(filter(lambda email: email not in failedEmails, emailList))
-    return workedEmails
-      
-#send email to single email  
-# def sendEmail(companyName,emailAddress):
-#     gmail = Gmail() # will open a browser window to ask you to log in and authenticate
+        <p>Thank you for your time, and I look forward to hearing from you!</p>
+        <p>Casey</p>
+        <p>Swella Group LLC</p>
+        <p>P.O. Box 16602 Salt Lake City ut 84116</p>
+        <p>(801)-923-4989</p>
+        """
+        
+        plain_body = re.sub(r'<[^>]+>', '', html_body)
+        return html_body, plain_body
     
-#     messageHTMLBody,messageBodyPlain = makeMessage(companyName)
-    
-#     params = {
-#         "to": emailAddress,
-#         "sender": "c0mmerciallycreativ3@gmail.com",
-#         "subject": "Product Photo Opportunity",
-#         "msg_html": messageHTMLBody,
-#         "msg_plain": messageBodyPlain,
-#         "signature": True, # use my account signature
-#         "attachments":["Commercially_Creative_Product_Deck.pdf"]
-#     }
-#     try:
-#         message = gmail.send_message(**params) 
-#         # print(message)
-#         return (True, 'None')
-#     except HttpError as e:
-#         if e.resp.content:
-#             error_details = e.resp.json()["error"]["errors"][0]
-#             error_message = error_details["message"]
-#             error_reason = error_details["reason"]
+    def check_mail_delivery_errors(self):
+        """Check unread emails for delivery failure notifications."""
+        try:
+            # Query for unread emails with failure notifications
+            query = "is:unread subject:(failure OR delivery OR undeliverable OR returned)"
+            results = self.service.users().messages().list(userId="me", q=query).execute()
+            messages = results.get('messages', [])
             
-#             print("An HttpError occurred:")
-#             print(f"Error Message: {error_message}")
-#             print(f"Error Reason: {error_reason}")
-#             print(f"email: "+emailAddress)
-#         else:
-#             print('HTTP error with email: ' + emailAddress)
-#         error_mess =  str(error_message) + str(error_reason) 
-#         return (False, error_mess)
+            failed_emails = []
+            for msg in messages:
+                # Get the full message details
+                message = self.service.users().messages().get(userId="me", id=msg['id']).execute()
+                
+                # Mark as read
+                self.service.users().messages().modify(
+                    userId="me",
+                    id=msg['id'],
+                    body={'removeLabelIds': ['UNREAD']}
+                ).execute()
+                
+                # Extract message content
+                if 'data' in message['payload']['body']:
+                    content = base64.urlsafe_b64decode(
+                        message['payload']['body']['data'].encode('ASCII')
+                    ).decode('utf-8')
+                    
+                    if any(error_text in content for error_text in 
+                          ['Address not found', 'Message blocked', 'Message not delivered']):
+                        failed_email = re.search(r'[\w.+-]+@[\w-]+\.[\w.-]+', content)
+                        if failed_email:
+                            failed_emails.append(failed_email.group())
+            
+            return bool(failed_emails), failed_emails
+            
+        except Exception as e:
+            print(f"Error checking delivery failures: {e}")
+            return False, []
