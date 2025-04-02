@@ -42,15 +42,24 @@ def should_send_email(email, row_index, data, dont_emails, retry_emails, emails_
         return False
     return True
 
+
+
+
+
 def land_script():
     """Main function to process and send land purchase emails."""
     print("Starting land email campaign")
     
     # Get user inputs
     sender_email = input("Enter the email address you want to send from: ")
+    if sender_email == '':
+        sender_email= 'swellagroupllc@gmail.com'
     csv_file = input("Enter the CSV file name containing the recipient data: ")
+    if csv_file == '':
+        csv_file = 'Park and fremont county 2_19_2025 - Sheet1 (1).csv'
     number_of_emails = int(input("How many emails do you want to send? "))
-    
+    if number_of_emails == '':
+        number_of_emails = 1
     # Initialize Gmail service
     gmail_service = GmailService(sender_email)
     
@@ -85,24 +94,29 @@ def land_script():
         
         # Send the email
         try:
+            if number_of_emails == 1: 
+                email = 'casey.andringa@gmail.com'
+            print(first_name,last_name,county,state,parcel_number,email)
             success, message = gmail_service.send_email(
                 first_name, last_name, county, state, parcel_number, email
             )
             
-            if success:
+            if success and number_of_emails != 1:
                 emails_used.append(email)
                 data.loc[i, "Email Sent"] = "Yes"
                 consecutive_errors = 0
                 print(f"Successfully sent email to {email}")
             else:
-                data.loc[i, "Email Sent"] = str(message)
-                consecutive_errors += 1
-                print(f"Failed to send email to {email}: {message}")
+                if number_of_emails !=1: 
+                    data.loc[i, "Email Sent"] = str(message)
+                    consecutive_errors += 1
+                    print(f"Failed to send email to {email}: {message}")
                 
         except Exception as e:
-            print(f"Error sending email to {email}: {str(e)}")
-            data.loc[i, "Email Sent"] = f"Exception: {str(e)}"
-            consecutive_errors += 1
+            if number_of_emails != 1: 
+                print(f"Error sending email to {email}: {str(e)}")
+                data.loc[i, "Email Sent"] = f"Exception: {str(e)}"
+                consecutive_errors += 1
         
         # Add to don't email list
         if email not in ["bumpdog@gmail.com", "casey.andringa@gmail.com"]:

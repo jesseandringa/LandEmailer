@@ -11,14 +11,18 @@ from datetime import datetime
 class GmailService:
     """Service for sending and managing emails through Gmail API."""
     
-    # Map of email usernames to their authentication ports
-    EMAIL_PORTS = {
+   
+    
+    SCOPES = [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/gmail.compose",
+    ]
+    USERNAME_TO_PORT ={
         "swellagroupllc": 50633,
         "theswellagroupllc": 8080
     }
-    
-    SCOPES = ["https://www.googleapis.com/auth/gmail.send", 
-              "https://www.googleapis.com/auth/gmail.readonly"]
     
     def __init__(self, sender_email):
         """
@@ -34,27 +38,28 @@ class GmailService:
     def _authenticate_user(self):
         """Authenticate user and create Gmail service."""
         creds = None
-        token_path = f"token_{self.username}.json"
-        credentials_path = f"credentials_{self.username}.json"
+        # The file token.json stores the user's access and refresh tokens.
+        token_path = "creds/token_"+self.username + ".json"
+        credentials_path = "creds/credentials_" +self.username +".json"
         
-        # Load existing credentials if available
         if os.path.exists(token_path):
+            print("token path exists")
             creds = Credentials.from_authorized_user_file(token_path, self.SCOPES)
-            
-        # Refresh or create new credentials if needed
         if not creds or not creds.valid:
+            print('no creds')
             if creds and creds.expired and creds.refresh_token:
+                print('old')
                 creds.refresh(Request())
+
             else:
-                port = self.EMAIL_PORTS.get(self.username, 8080)
+                print('new')
+                # The OAuth flow to get new credentials
                 flow = InstalledAppFlow.from_client_secrets_file(credentials_path, self.SCOPES)
-                creds = flow.run_local_server(port=port)
-                
-            # Save credentials for future use
+                creds = flow.run_local_server(port=self.USERNAME_TO_PORT[self.username])
+            # Save the credentials for the next run
             with open(token_path, "w") as token:
                 token.write(creds.to_json())
-        
-        return build("gmail", "v1", credentials=creds)
+        return  build("gmail", "v1", credentials=creds)
     
     def _create_message(self, to, subject, html_body, plain_body):
         """Create email message in proper format."""
